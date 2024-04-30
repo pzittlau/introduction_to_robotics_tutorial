@@ -12,15 +12,34 @@ class WatchdogNode(Node):
         self.create_subscription(Twist, 'input_cmd', self.cmd_callback, 10)
         self.create_subscription(String, 'controller_cmd', self.controller_callback, 10)
         self.get_logger().info('Watchdog node started')
+        self.state = '' # By default the turtle should not move
 
     def cmd_callback(self, msg):
-        # this makes the turle go backwards
-        # (just so you know its working)
-        msg.linear.x = -1 * msg.linear.x
-        self.get_logger().info(f'msg.linear.x: {msg.linear.x}')
-        self.publisher.publish(msg)
-        
+        if self.state == 'start':
+            # Normal operation: turtle moves based on the input command
+            self.publisher.publish(msg)
+            # self.get_logger().info(f'cmd_vel published with linear.x: {msg.linear.x}, angular.z: {msg.angular.z}')
+        elif self.state == 'stop':
+            # Stop all movements: set all velocities to zero
+            msg.linear.x = float(0)
+            msg.linear.y = float(0)
+            msg.linear.z = float(0)
+            msg.angular.x = float(0)
+            msg.angular.y = float(0)
+            msg.angular.z = float(0)
+
+            self.publisher.publish(msg)
+            # self.get_logger().info(f'cmd_vel published with all velocities set to zero {type(msg.linear)}')
+        else:
+            # Before 'start': only allow turning
+            msg.linear.x = float(0)
+            msg.linear.y = float(0)
+            msg.linear.z = float(0)
+            self.publisher.publish(msg)
+            # self.get_logger().info(f'cmd_vel published with linear.x set to zero, angular.z: {msg.angular.z}')
+
     def controller_callback(self, msg):
+        self.state = msg.data.lower()  # Update the state based on the controller command
         self.get_logger().warn(f'The controller says I should {msg.data} the turtle ...')
 
 
