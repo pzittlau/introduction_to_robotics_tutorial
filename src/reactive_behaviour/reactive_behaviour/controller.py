@@ -35,7 +35,7 @@ class VelocityController(DrivingSwarmNode):
         fr_distance = self.distances[340]
         fl_distance = self.distances[20]
 
-        msg.linear.x = clamp(f_distance - 0.3, -0.1, 0.2)
+        msg.linear.x = clamp(f_distance - 0.3, -0.1, 0.3)
 
         # Wall-following behavior (right wall)
         desired_distance = 0.2  # Desired distance from the right wall
@@ -44,7 +44,13 @@ class VelocityController(DrivingSwarmNode):
             msg.angular.z = max_turn_rate  # Turn left
         else:
             # Turn left to increase distance and right to decrease distance
-            msg.angular.z = clamp(desired_distance - r_distance, -max_turn_rate, max_turn_rate)
+            msg.angular.z = 1.5*clamp(desired_distance - r_distance, -max_turn_rate, max_turn_rate)
+            # if r_distance < desired_distance:
+            #     msg.angular.z = clamp(desired_distance - r_distance, 0, max_turn_rate)  # Turn left to increase distance
+            # elif r_distance > desired_distance:
+            #     msg.angular.z = clamp(desired_distance - r_distance, -max_turn_rate, 0)  # Turn right to decrease distance
+            # else:
+            #     msg.angular.z = 0.0  # Go straight
 
         # Additional adjustment based on front-left and front-right sensors
         if fr_distance < 0.4:
@@ -54,6 +60,14 @@ class VelocityController(DrivingSwarmNode):
 
         # Publish the command
         self.publisher.publish(msg)
+
+    def close_to_wall(self, offset, threshold):
+        o = offset + threshold
+        for d in self.distances:
+            if d < o:
+                return True
+
+        return False
 
     def laser_cb(self, msg):
         self.distances = msg.ranges
