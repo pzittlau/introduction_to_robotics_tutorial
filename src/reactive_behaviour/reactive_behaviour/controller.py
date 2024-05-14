@@ -7,14 +7,6 @@ from driving_swarm_utils.node import DrivingSwarmNode, main_fn
 
 PI = 3.1415
 
-def sign(x):
-    if x > 0:
-        return 1
-    elif x < 0:
-        return -1
-    else:
-        return 0
-
 def clamp(x, min, max=None):
     if x < min:
         return min
@@ -34,41 +26,34 @@ class VelocityController(DrivingSwarmNode):
         self.setup_command_interface()
         
     def timer_cb(self):
-        if not self.started:
+        if not self.started or not hasattr(self, 'distances'):
             return
+
         msg = Twist()
-        fw_distance = self.distances[0]
+        f_distance = self.distances[0]
         r_distance = self.distances[270]
-        l_distance = self.distances[90]
         fr_distance = self.distances[340]
         fl_distance = self.distances[20]
 
-        x = 0
-        # x = sign(fw_distance) * max(fw_distance, 0.1)
-        # clamp x between 0 and 0.1
-        x = clamp(fw_distance - 0.3, -0.1, 0.1)
-        msg.linear.x = x
+        msg.linear.x = clamp(f_distance - 0.3, -0.1, 0.2)
 
-        # rotate if x == 0
-        if (self.close_to_wall(0.3, 0.1)):
-            msg.angular.z = 10*PI/360
+        # Wall-following behavior (right wall)
+        desired_distance = 0.2  # Desired distance from the right wall
+        max_turn_rate = PI/2
+        if f_distance < 0.3:  # Obstacle in front
+            msg.angular.z = max_turn_rate  # Turn left
+        else:
+            # Turn left to increase distance and right to decrease distance
+            msg.angular.z = clamp(desired_distance - r_distance, -max_turn_rate, max_turn_rate)
 
-        if (self.close_to_wall(0.3, 0.05)):
-            msg.angular.z = 25*PI/360
+        # Additional adjustment based on front-left and front-right sensors
+        if fr_distance < 0.4:
+            msg.angular.z = max_turn_rate
+        elif fl_distance < 0.4:
+            msg.angular.z = -max_turn_rate
 
-        if (l_distance < 0.4 or r_distance < 0.4):
-            if (l_distance < r_distance):
-                msg.angular.z = -msg.angular.z
-
+        # Publish the command
         self.publisher.publish(msg)
-
-    def close_to_wall(self, offset, threshold):
-        o = offset + threshold
-        for d in self.distances:
-            if d < o:
-                return True
-
-        return False
 
     def laser_cb(self, msg):
         self.distances = msg.ranges
@@ -79,3 +64,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+# [robotA.scoring_node]: score: 27.11 at t=120.0s
+# [robotB.scoring_node]: score: 26.44 at t=120.0s
